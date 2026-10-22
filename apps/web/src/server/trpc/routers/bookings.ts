@@ -7,9 +7,19 @@ import { publicProcedure, router } from "../init.ts";
 
 export const bookingsRouter = router({
   cancel: publicProcedure
-    .input(z.object({ actorId: z.string(), bookingId: z.string() }))
+    .input(
+      z.object({
+        actorId: z.string(),
+        bookingId: z.string(),
+        password: z.string(),
+      })
+    )
     .mutation(({ ctx, input }) =>
-      ctx.services.bookings.cancel(input.actorId, input.bookingId)
+      ctx.services.bookings.cancel(
+        input.actorId,
+        input.bookingId,
+        input.password
+      )
     ),
   create: publicProcedure
     .input(z.object({ actorId: z.string(), booking: createBookingInput }))
@@ -26,6 +36,7 @@ export const bookingsRouter = router({
       z.object({
         actorId: z.string(),
         bookingId: z.string(),
+        password: z.string(),
         slot: rescheduleBookingInput,
       })
     )
@@ -33,6 +44,7 @@ export const bookingsRouter = router({
       ctx.services.bookings.reschedule(
         input.actorId,
         input.bookingId,
+        input.password,
         input.slot
       )
     ),

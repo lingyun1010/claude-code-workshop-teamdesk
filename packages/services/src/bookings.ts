@@ -5,6 +5,7 @@ import {
   cancelBooking,
   findOverlappingBookings,
   getBooking,
+  getBookingPasswordHash,
   insertBooking,
   listMemberBookings,
   listRoomBookings,
@@ -14,10 +15,11 @@ import { getRoom } from "@repo/db/rooms";
 import {
   BOOKING_MAX_MINUTES,
   BOOKING_MIN_MINUTES,
+  BOOKING_PASSWORD_MAX_LENGTH,
+  BOOKING_PASSWORD_MIN_LENGTH,
   BOOKING_TITLE_MAX_LENGTH,
   type Booking,
   MAX_BOOKINGS_PER_MEMBER_PER_DAY,
-  type Member,
 } from "@repo/db/shared";
 import { and, count, eq, gt, isNull, lt } from "drizzle-orm";
 import { z } from "zod";
@@ -28,11 +30,23 @@ import {
   ValidationError,
 } from "./errors.ts";
 import { requireMember } from "./members.ts";
+import { hashPassword, verifyPassword } from "./passwords.ts";
 import { minutesBetween, toUtcIso, utcDayBounds } from "./time.ts";
 
 export const createBookingInput = z.object({
   attendees: z.int().min(1, "At least one person must attend."),
   endsAt: z.iso.datetime(),
+  // Not trimmed: the password has to match exactly.
+  password: z
+    .string()
+    .min(
+      BOOKING_PASSWORD_MIN_LENGTH,
+      `Password must be at least ${BOOKING_PASSWORD_MIN_LENGTH} characters.`
+    )
+    .max(
+      BOOKING_PASSWORD_MAX_LENGTH,
+      `Password must be at most ${BOOKING_PASSWORD_MAX_LENGTH} characters.`
+    ),
   roomId: z.string().min(1),
   startsAt: z.iso.datetime(),
   title: z
@@ -55,23 +69,39 @@ export const rescheduleBookingInput = z.object({
 export type RescheduleBookingInput = z.input<typeof rescheduleBookingInput>;
 
 export interface BookingsService {
-  /** Throws ForbiddenError unless the actor owns the booking or is an admin. */
-  cancel: (actorId: string, bookingId: string) => Promise<Booking>;
+  /**
+   * Throws ForbiddenError unless `password` is the one the booking was made
+   * with. Bookings from before passwords existed need none.
+   */
+  cancel: (
+    actorId: string,
+    bookingId: string,
+    password: string
+  ) => Promise<Booking>;
   create: (actorId: string, input: CreateBookingInput) => Promise<Booking>;
   /** A room's active bookings on the UTC day `day` falls on. */
   listForRoom: (roomId: string, day: string) => Promise<Booking[]>;
   /** The member's active bookings that have not ended by `now`. */
   listUpcoming: (memberId: string, now: string) => Promise<Booking[]>;
-  /** Moves a booking to a new slot in the same room. */
+  /** Moves a booking to a new slot in the same room. Needs the password. */
   reschedule: (
     actorId: string,
     bookingId: string,
+    password: string,
     input: RescheduleBookingInput
   ) => Promise<Booking>;
 }
 
-function canManage(actor: Member, booking: Booking): boolean {
-  return actor.role === "admin" || booking.memberId === actor.id;
+/** There is no login, so the password is the only proof of ownership. */
+async function requirePassword(
+  db: Database,
+  bookingId: string,
+  password: string
+): Promise<void> {
+  const stored = await getBookingPasswordHash(db, bookingId);
+  if (stored && !(await verifyPassword(password, stored))) {
+    throw new ForbiddenError("Wrong password.");
+  }
 }
 
 function checkSlot(startsAt: string, endsAt: string): void {
@@ -110,17 +140,13 @@ async function countBookingsOnDay(
 }
 
 export const createBookingsService = (db: Database): BookingsService => ({
-  cancel: async (actorId, bookingId) => {
-    const actor = await requireMember(db, actorId);
+  cancel: async (actorId, bookingId, password) => {
+    await requireMember(db, actorId);
     const booking = await getBooking(db, bookingId);
     if (!booking || booking.cancelledAt) {
       throw new NotFoundError("Booking", bookingId);
     }
-    if (!canManage(actor, booking)) {
-      throw new ForbiddenError(
-        "Only the person who booked or an admin can cancel."
-      );
-    }
+    await requirePassword(db, bookingId, password);
     const cancelled = await cancelBooking(db, bookingId);
     if (!cancelled) {
       throw new NotFoundError("Booking", bookingId);
@@ -165,10 +191,11 @@ export const createBookingsService = (db: Database): BookingsService => ({
     // The overlap check above can race with another request for the same
     // slot. The unique index on (room, start) catches that case.
     try {
-      return insertBooking(db, {
+      return await insertBooking(db, {
         attendees: data.attendees,
         endsAt,
         memberId: actorId,
+        passwordHash: await hashPassword(data.password),
         roomId: room.id,
         startsAt,
         title: data.title,
@@ -187,19 +214,14 @@ export const createBookingsService = (db: Database): BookingsService => ({
     return listRoomBookings(db, roomId, { from: start, to: end });
   },
   listUpcoming: (memberId, now) => listMemberBookings(db, memberId, now),
-  reschedule: async (actorId, bookingId, input) => {
+  reschedule: async (actorId, bookingId, password, input) => {
     await requireMember(db, actorId);
     const data = rescheduleBookingInput.parse(input);
     const booking = await getBooking(db, bookingId);
     if (!booking || booking.cancelledAt) {
       throw new NotFoundError("Booking", bookingId);
     }
-    const member = await requireMember(db, booking.memberId);
-    if (!canManage(member, booking)) {
-      throw new ForbiddenError(
-        "Only the person who booked or an admin can reschedule."
-      );
-    }
+    await requirePassword(db, bookingId, password);
     const startsAt = toUtcIso(data.startsAt);
     const endsAt = toUtcIso(data.endsAt);
     checkSlot(startsAt, endsAt);

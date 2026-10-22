@@ -130,13 +130,14 @@ function BookingsPage() {
   );
 
   const handleCancel = useCallback(
-    async (bookingId: string) => {
+    async (bookingId: string, password: string) => {
       const ok = await cancelBooking.run(() =>
-        getTrpc().bookings.cancel.mutate({ actorId, bookingId })
+        getTrpc().bookings.cancel.mutate({ actorId, bookingId, password })
       );
       if (ok) {
         await loadUpcoming();
       }
+      return ok;
     },
     [actorId, cancelBooking.run, loadUpcoming]
   );
@@ -228,6 +229,7 @@ function BookingsPage() {
         <h2 className="mb-4 font-heading text-2xl text-foreground">
           My upcoming bookings
         </h2>
+        <FormError message={cancelBooking.error} />
         <BookingList
           bookings={upcoming}
           describe={describeUpcoming}

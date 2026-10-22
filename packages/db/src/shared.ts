@@ -65,6 +65,8 @@ export const MEMBER_NAME_MAX_LENGTH = 80;
 export const ROOM_NAME_MAX_LENGTH = 60;
 export const ROOM_CAPACITY_MAX = 200;
 export const BOOKING_TITLE_MAX_LENGTH = 120;
+export const BOOKING_PASSWORD_MIN_LENGTH = 4;
+export const BOOKING_PASSWORD_MAX_LENGTH = 20;
 export const BOOKING_MIN_MINUTES = 15;
 export const BOOKING_MAX_MINUTES = 240;
 /** Active bookings one member may start on a single UTC day. */

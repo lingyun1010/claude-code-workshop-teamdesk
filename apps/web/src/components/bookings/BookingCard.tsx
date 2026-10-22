@@ -1,6 +1,7 @@
 import type { Booking } from "@repo/db/shared";
-import { useCallback } from "react";
+import { type FormEvent, useCallback, useState } from "react";
 import { Button } from "#/components/ui/button";
+import { Input } from "#/components/ui/input";
 import { formatUtcRange } from "#/lib/datetime";
 
 interface BookingCardProps {
@@ -8,7 +9,7 @@ interface BookingCardProps {
   /** Who booked it or where it is, depending on the list. */
   detail: string;
   disabled: boolean;
-  onCancel: (bookingId: string) => void;
+  onCancel: (bookingId: string, password: string) => Promise<boolean>;
 }
 
 export default function BookingCard({
@@ -17,8 +18,20 @@ export default function BookingCard({
   disabled,
   onCancel,
 }: BookingCardProps) {
+  const [asking, setAsking] = useState(false);
+
+  const handleAsk = useCallback(() => setAsking(true), []);
+  const handleBack = useCallback(() => setAsking(false), []);
   const handleCancel = useCallback(
-    () => onCancel(booking.id),
+    async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      const password = String(
+        new FormData(event.currentTarget).get("password") ?? ""
+      );
+      if (await onCancel(booking.id, password)) {
+        setAsking(false);
+      }
+    },
     [booking.id, onCancel]
   );
 
@@ -34,14 +47,32 @@ export default function BookingCard({
           {booking.attendees === 1 ? "person" : "people"}
         </p>
       </div>
-      <Button
-        disabled={disabled}
-        onClick={handleCancel}
-        size="sm"
-        variant="outline"
-      >
-        Cancel
-      </Button>
+      {asking ? (
+        <form className="flex items-center gap-2" onSubmit={handleCancel}>
+          <Input
+            aria-label="Booking password"
+            autoComplete="off"
+            className="w-32"
+            name="password"
+            placeholder="Password"
+          />
+          <Button disabled={disabled} size="sm" type="submit">
+            Confirm
+          </Button>
+          <Button onClick={handleBack} size="sm" type="button" variant="ghost">
+            Back
+          </Button>
+        </form>
+      ) : (
+        <Button
+          disabled={disabled}
+          onClick={handleAsk}
+          size="sm"
+          variant="outline"
+        >
+          Cancel
+        </Button>
+      )}
     </li>
   );
 }

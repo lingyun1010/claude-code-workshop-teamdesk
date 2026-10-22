@@ -60,6 +60,9 @@ export const bookings = sqliteTable(
     memberId: integer("member_id")
       .notNull()
       .references(() => members.id),
+    // "salt:hash", never the password itself. Null on bookings made before
+    // passwords existed; those can be cancelled and moved by anyone.
+    passwordHash: text("password_hash"),
     roomId: integer("room_id")
       .notNull()
       .references(() => rooms.id),

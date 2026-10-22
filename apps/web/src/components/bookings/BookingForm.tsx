@@ -1,4 +1,8 @@
-import { BOOKING_TITLE_MAX_LENGTH } from "@repo/db/shared";
+import {
+  BOOKING_PASSWORD_MAX_LENGTH,
+  BOOKING_PASSWORD_MIN_LENGTH,
+  BOOKING_TITLE_MAX_LENGTH,
+} from "@repo/db/shared";
 import { type FormEvent, useCallback } from "react";
 import FormError from "#/components/form-error";
 import { Button } from "#/components/ui/button";
@@ -8,6 +12,7 @@ import { isoFromDayAndTime } from "#/lib/datetime";
 export interface BookingDraft {
   attendees: number;
   endsAt: string;
+  password: string;
   startsAt: string;
   title: string;
 }
@@ -36,6 +41,7 @@ export default function BookingForm({
       const ok = await onSubmit({
         attendees: Number(data.get("attendees")),
         endsAt: isoFromDayAndTime(day, String(data.get("endsAt"))),
+        password: String(data.get("password") ?? ""),
         startsAt: isoFromDayAndTime(day, String(data.get("startsAt"))),
         title: String(data.get("title") ?? ""),
       });
@@ -49,7 +55,7 @@ export default function BookingForm({
   return (
     <form className="island-shell p-6 sm:p-8" onSubmit={handleSubmit}>
       <p className="island-kicker mb-3">New booking on {day} (times in UTC)</p>
-      <div className="grid gap-3 sm:grid-cols-[2fr_1fr_1fr_1fr_auto] sm:items-end">
+      <div className="grid gap-3 sm:grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] sm:items-end">
         <label className="grid gap-1 text-sm" htmlFor="booking-title">
           Title
           <Input
@@ -93,10 +99,26 @@ export default function BookingForm({
             type="number"
           />
         </label>
+        <label className="grid gap-1 text-sm" htmlFor="booking-password">
+          Password
+          <Input
+            autoComplete="off"
+            id="booking-password"
+            maxLength={BOOKING_PASSWORD_MAX_LENGTH}
+            minLength={BOOKING_PASSWORD_MIN_LENGTH}
+            name="password"
+            required
+          />
+        </label>
         <Button disabled={pending} type="submit">
           {pending ? "Booking…" : "Book"}
         </Button>
       </div>
+      <p className="mt-3 mb-0 text-muted-foreground text-sm">
+        Remember this password ({BOOKING_PASSWORD_MIN_LENGTH} to{" "}
+        {BOOKING_PASSWORD_MAX_LENGTH} characters, case-sensitive). You can't
+        cancel or move this booking without it.
+      </p>
       <FormError message={error} />
     </form>
   );

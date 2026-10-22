@@ -6,7 +6,7 @@ interface BookingListProps {
   describe: (booking: Booking) => string;
   disabled: boolean;
   emptyText: string;
-  onCancel: (bookingId: string) => void;
+  onCancel: (bookingId: string, password: string) => Promise<boolean>;
 }
 
 export default function BookingList({

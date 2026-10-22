@@ -30,6 +30,22 @@ export async function getBooking(
   return row ? toBooking(row) : null;
 }
 
+/**
+ * The stored "salt:hash" for a booking, or null for one made before passwords
+ * existed. Kept out of `Booking` so it never reaches the browser.
+ */
+export async function getBookingPasswordHash(
+  db: Database,
+  id: string
+): Promise<string | null> {
+  const [row] = await db
+    .select({ passwordHash: bookings.passwordHash })
+    .from(bookings)
+    .where(eq(bookings.id, Number(id)))
+    .limit(1);
+  return row?.passwordHash ?? null;
+}
+
 /** Active bookings of a room that start in [from, to), earliest first. */
 export async function listRoomBookings(
   db: Database,
@@ -105,6 +121,7 @@ export async function insertBooking(
     attendees: number;
     endsAt: string;
     memberId: string;
+    passwordHash: string | null;
     roomId: string;
     startsAt: string;
     title: string;

@@ -20,6 +20,7 @@ describe("availability service", () => {
       attendees: 2,
       endsAt: at("10:00"),
       memberId: team.ana.id,
+      passwordHash: null,
       roomId: team.bigRoom.id,
       startsAt: at("09:00"),
       title: "Planning",

@@ -36,6 +36,7 @@ const book = (startsAt: string, endsAt: string) =>
     attendees: 2,
     endsAt,
     memberId,
+    passwordHash: null,
     roomId,
     startsAt,
     title: "Stand-up",
